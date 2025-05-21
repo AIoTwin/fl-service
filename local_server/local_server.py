@@ -6,6 +6,16 @@ import flwr as fl
 from flwr.common import parameters_to_ndarrays, ndarrays_to_parameters, Scalar, Metrics, EvaluateRes, FitRes
 from flwr.server.client_proxy import ClientProxy
 from typing import List, Tuple, Optional, Union, Dict
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+logging.info("Training started")
+logging.warning("This is a warning")
 
 # --- Shared State ---
 class SharedState:
@@ -16,10 +26,14 @@ class SharedState:
         self.local_round = 0
         self.waiting_to_sync = False
         self.has_initialized = False
+        # training:
         self.num_examples = 0
         self.avg_acc = 0.0
         self.avg_loss = 0.0
-
+        # evaluation:
+        self.test_num_examples = 0
+        self.test_avg_acc = 0.0
+        self.test_avg_loss = 0.0
 
 # --- Strategy ---
 class FedAvgWithCheckpoint(fl.server.strategy.FedAvg):
@@ -43,10 +57,10 @@ class FedAvgWithCheckpoint(fl.server.strategy.FedAvg):
         self.local_rounds = local_rounds
 
     def initialize_parameters(self, client_manager):
-        print("[Local Aggregator] Waiting to initialize with global parameters.")
+        logging.info("[Local Aggregator] Waiting to initialize with global parameters.")
         while self.shared_state.current_parameters is None:
             pass
-        print("[Local Aggregator] Initialized with global parameters.")
+        logging.info("[Local Aggregator] Initialized with global parameters.")
         return self.shared_state.current_parameters
 
     def aggregate_fit(self, rnd, results, failures):
@@ -58,14 +72,14 @@ class FedAvgWithCheckpoint(fl.server.strategy.FedAvg):
             self.shared_state.num_examples += fit_res.num_examples
 
         if self.shared_state.local_round % self.local_rounds == 0:
-            print("[Aggregator] Completed local rounds. Syncing with global server...")
+            logging.info("[Aggregator] Completed local rounds. Syncing with global server...")
             self.shared_state.waiting_to_sync = True
             # Removed server_lock acquisition before server starts
-            print("[Local Aggregator] Releasing lock to let global client continue...")
+            logging.info("[Local Aggregator] Releasing lock to let global client continue...")
             self.shared_state.client_lock.release()
             self.shared_state.server_lock.acquire()
 
-        return aggregated_result
+        return self.shared_state.current_parameters, {}
 
     def aggregate_evaluate(
         self,
@@ -89,9 +103,13 @@ class FedAvgWithCheckpoint(fl.server.strategy.FedAvg):
 
         # Aggregate and print custom metric
         aggregated_accuracy = sum(accuracies) / sum(examples)
-        print(
-            f"Round {server_round} accuracy aggregated from client results: {aggregated_accuracy}"
+        logging.info(
+            f"[Aggregator] Round {server_round} accuracy aggregated from client results: {aggregated_accuracy}"
         )
+        self.shared_state.test_num_examples = sum(examples)
+        self.shared_state.test_avg_loss = float(aggregated_loss)
+        self.shared_state.test_avg_acc = float(aggregated_accuracy)
+
         return float(aggregated_loss), {"accuracy": float(aggregated_accuracy)}
 
 # --- Parent Connection ---
@@ -107,27 +125,27 @@ class AggregatorParentConnection(fl.client.NumPyClient):
         round_num = config.get("server_round", 0)
 
         if round_num == 0 and not self.shared_state.has_initialized:
-            print("[Global Client] Initializing from global server.")
+            logging.info("[Global Client] Initializing from global server.")
             self.shared_state.current_parameters = ndarrays_to_parameters(parameters)
             self.shared_state.has_initialized = True
-            print("[Global Client] Releasing lock to allow local server to start.")
-            print("[Global Client] Releasing server lock to resume local training.")
+            logging.info("[Global Client] Releasing lock to allow local server to start.")
+            logging.info("[Global Client] Releasing server lock to resume local training.")
             self.shared_state.server_lock.release()  # Let local server start
-            print("[Global Client] Waiting for local training to finish after initialization...")
-            print("[Global Client] Blocking until local training completes...")
+            logging.info("[Global Client] Waiting for local training to finish after initialization...")
+            logging.info("[Global Client] Blocking until local training completes...")
             self.shared_state.client_lock.acquire()  # Wait until local training is done
-            print("[Global Client] Acquired lock. Local training finished.")
-            print("[Global Client] Local training complete after initialization.")
+            logging.info("[Global Client] Acquired lock. Local training finished.")
+            logging.info("[Global Client] Local training complete after initialization.")
             return self.get_parameters(config), self.shared_state.num_examples, {}
 
-        print(f"[Global Client] Received global update for round {round_num}.")
+        logging.info(f"[Global Client] Received global update for round {round_num}.")
         self.shared_state.current_parameters = ndarrays_to_parameters(parameters)
 
         if self.shared_state.waiting_to_sync:
-            print("[Global Client] Waiting for local server to complete training...")
+            logging.info("[Global Client] Waiting for local server to complete training...")
             self.shared_state.server_lock.release()
             self.shared_state.client_lock.acquire()
-            print("[Global Client] Local training complete. Sending update to global.")
+            logging.info("[Global Client] Local training complete. Sending update to global.")
 
         return self.get_parameters(config), self.shared_state.num_examples, {}
 
@@ -142,9 +160,9 @@ class AggregatorParentConnection(fl.client.NumPyClient):
 class Aggregator:
     def __init__(self, server_cfg, strategy_cfg):
         self.shared_state = SharedState()
-        print("[Server Thread] Waiting for global parameters...")
+        logging.info("[Server Thread] Waiting for global parameters...")
         self.shared_state.server_lock.acquire()
-        print("[Server Thread] Received signal to start. Launching local Flower server...")
+        logging.info("[Server Thread] Received signal to start. Launching local Flower server...")
         self.shared_state.client_lock.acquire()  # Pre-lock client so it can block on first acquire
         self.local_address = server_cfg["local_address"]
         self.global_address = server_cfg["global_address"]
