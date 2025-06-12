@@ -1,7 +1,7 @@
 # Hands on Part I.
 # Hierarchical FL with Flower Framework
 ## Task 1. - Standard Federated Learning setup with Flower
-
+dodaj logove
 **Task structure**:  
 ```
 ├── task1 
