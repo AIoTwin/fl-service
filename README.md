@@ -46,6 +46,5 @@ cd aiotwin-tutorial/task2
 ```
 python3 client.py
 ```
-4. In task.py 
 
 
