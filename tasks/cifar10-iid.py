@@ -1,6 +1,6 @@
 #
 # Cifar10 - IID
-# lr = 0.1, batch_size = 32, epochs = 3
+# lr = 0.01, batch_size = 32, epochs = 3
 #
 from collections import OrderedDict
 import torch
