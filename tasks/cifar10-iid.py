@@ -1,6 +1,6 @@
 #
 # Cifar10 - IID
-# lr = 0.1, batch_size = 32, epochs = 3
+# lr = 0.01, batch_size = 32, epochs = 3
 #
 from collections import OrderedDict
 import torch
@@ -57,8 +57,6 @@ fds = None  # Cache FederatedDataset
 def load_data(partition_id: int, num_partitions: int, batch_size: int):
     """Load partition CIFAR10 data."""
     # Only initialize `FederatedDataset` once
-    partition_id = 0
-    num_partitions = 1
     global fds
     if fds is None:
         partitioner = IidPartitioner(num_partitions=num_partitions)
