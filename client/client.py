@@ -4,6 +4,7 @@ import torch
 import flwr as fl
 from task import Net, get_weights, load_data, set_weights, test, train
 import logging
+import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +49,7 @@ class FlowerClient(fl.client.NumPyClient):
 # Main
 # ---------------------------
 if __name__ == "__main__":
+    start = time.time()
 
     with open("client_config.yaml", 'r') as file:
         config = yaml.safe_load(file)
@@ -60,7 +62,12 @@ if __name__ == "__main__":
     learning_rate = config["run_config"]["learning-rate"]
 
     server_address = config["server"]["address"]
+
+    print(f"Before Loading partition in {time.time() - start:.2f} sec")
+
+    start = time.time()
     trainloader, valloader = load_data(partition_id, num_partitions, batch_size)
+    print(f"Loaded partition in {time.time() - start:.2f} sec")
 
 
     client = FlowerClient(trainloader, valloader, local_epochs, learning_rate, partition_id).to_client()

@@ -17,6 +17,8 @@ RUN apt-get purge -y build-essential && apt-get autoremove -y
 
 COPY global_server.py /home/
 
+COPY data /home/data
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 

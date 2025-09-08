@@ -11,3 +11,7 @@
 */ENV/
 */env.bak/
 */venv.bak/
+
+*/data/*
+
+*/uoft-cs___cifar10/*
