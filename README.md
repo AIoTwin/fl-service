@@ -42,7 +42,7 @@ DEBUG flwr 2025-06-15 17:22:45,674 | connection.py:55 | ChannelConnectivity.READ
 &nbsp;  
 &nbsp;  
 
-## Task 2. - Hierarhical Federated Learning setup with Flower
+## Task 2. - Hierarhical Federated Learning with AIoTwin Flower Wrapper
 **Setup**:
 ```
 Flower Global Server:                                        (hfl-n1, "10.19.4.113:8080")
